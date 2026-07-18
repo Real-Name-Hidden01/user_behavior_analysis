@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UBA Platform - User Behavior Analytics</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .sidebar {
+            height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 250px;
+            padding-top: 20px;
+            overflow-y: auto;
+        }
+        
+        .sidebar .nav-link {
+            color: rgba(255, 255, 255, 0.8);
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin: 5px 15px;
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        
+        .main-content {
+            margin-left: 250px;
+            padding: 20px;
+        }
+        
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+        }
+        
+        .stat-card {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .risk-high { color: #dc3545; }
+        .risk-medium { color: #ffc107; }
+        .risk-low { color: #28a745; }
+        
+        .alert-item {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid;
+            animation: slideIn 0.3s ease;
+        }
+        
+        .alert-high {
+            background-color: #f8d7da;
+            border-left-color: #dc3545;
+        }
+        
+        .alert-medium {
+            background-color: #fff3cd;
+            border-left-color: #ffc107;
+        }
+        
+        .alert-low {
+            background-color: #d4edda;
+            border-left-color: #28a745;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .activity-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            transition: background-color 0.2s ease;
+        }
+        
+        .activity-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .timestamp {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        
+        .risk-score {
+            font-weight: bold;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+        
+        .navbar-brand {
+            font-weight: bold;
+            color: white !important;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-online { background-color: #28a745; }
+        .status-offline { background-color: #dc3545; }
+        .status-warning { background-color: #ffc107; }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-bottom: 20px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+        }
+        
+        .btn-simulate {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-simulate:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="px-3 py-2">
+            <h4 class="navbar-brand">
+                <i class="fas fa-shield-alt"></i> UBA Platform
+            </h4>
+        </div>
+        
+        <nav class="nav flex-column">
+            <a class="nav-link active" href="#dashboard" onclick="showSection('dashboard')">
+                <i class="fas fa-tachometer-alt"></i> Dashboard
+            </a>
+            <a class="nav-link" href="#activities" onclick="showSection('activities')">
+                <i class="fas fa-list"></i> Activities
+            </a>
+            <a class="nav-link" href="#alerts" onclick="showSection('alerts')">
+                <i class="fas fa-exclamation-triangle"></i> Alerts
+            </a>
+            <a class="nav-link" href="#users" onclick="showSection('users')">
+                <i class="fas fa-users"></i> Users
+            </a>
+            <a class="nav-link" href="#analytics" onclick="showSection('analytics')">
+                <i class="fas fa-chart-bar"></i> Analytics
+            </a>
+            <a class="nav-link" href="#simulate" onclick="showSection('simulate')">
+                <i class="fas fa-play"></i> Simulate
+            </a>
+        </nav>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Dashboard Section -->
+        <div id="dashboard" class="content-section">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>Security Dashboard</h1>
+                <div class="text-muted">
+                    <span class="status-indicator status-online"></span>
+                    Real-time monitoring active
+                </div>
+            </div>
+            
+            <!-- Statistics Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="stat-number risk-high" id="high-risk-count">0</div>
+                        <div class="text-muted">High Risk Activities</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="stat-number risk-medium" id="medium-risk-count">0</div>
+                        <div class="text-muted">Medium Risk Activities</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="stat-number risk-low" id="low-risk-count">0</div>
+                        <div class="text-muted">Low Risk Activities</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="stat-number" id="total-users">0</div>
+                        <div class="text-muted">Active Users</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Charts -->
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Risk Score Distribution</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="riskChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Activity Timeline</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="timelineChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Recent Alerts -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Recent Alerts</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="recent-alerts">
+                                <div class="loading">Loading alerts...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Activities Section -->
+        <div id="activities" class="content-section" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>User Activities</h1>
+                <div class="btn-group">
+                    <button class="btn btn-outline-primary" onclick="refreshActivities()">
+                        <i class="fas fa-refresh"></i> Refresh
+                    </button>
+                    <select class="form-select" id="user-filter" onchange="filterActivities()">
+                        <option value="">All Users</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-body">
+                    <div id="activities-list">
+                        <div class="loading">Loading activities...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Alerts Section -->
+        <div id="alerts" class="content-section" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>Security Alerts</h1>
+                <button class="btn btn-outline-primary" onclick="refreshAlerts()">
+                    <i class="fas fa-refresh"></i> Refresh
+                </button>
+            </div>
+            
+            <div class="card">
+                <div class="card-body">
+                    <div id="alerts-list">
+                        <div class="loading">Loading alerts...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Users Section -->
+        <div id="users" class="content-section" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>User Management</h1>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-4" id="users-list">
+                    <div class="loading">Loading users...</div>
+                </div>
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>User Profile</h5>
+                        </div>
+                        <div class="card-body" id="user-profile">
+                            <p class="text-muted">Select a user to view their profile.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Analytics Section -->
+        <div id="analytics" class="content-section" style="display: none;">
+            <h1 class="mb-4">Advanced Analytics</h1>
+            
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>User Behavior Patterns</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="behaviorChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Location Analysis</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="locationChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Time-based Patterns</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="timePatternChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Simulate Section -->
+        <div id="simulate" class="content-section" style="display: none;">
+            <h1 class="mb-4">Activity Simulation</h1>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Simulate User Activity</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="simulate-form">
+                                <div class="mb-3">
+                                    <label class="form-label">User ID</label>
+                                    <select class="form-select" id="sim-user-id" required>
+                                        <option value="">Select User</option>
+                                        <option value="user1">user1</option>
+                                        <option value="user2">user2</option>
+                                        <option value="user3">user3</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Activity Type</label>
+                                    <select class="form-select" id="sim-activity-type" required>
+                                        <option value="login">Login</option>
+                                        <option value="file_access">File Access</option>
+                                        <option value="command_execution">Command Execution</option>
+                                        <option value="logout">Logout</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Resource</label>
+                                    <input type="text" class="form-control" id="sim-resource" value="server1" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">IP Address</label>
+                                    <input type="text" class="form-control" id="sim-ip" value="192.168.1.100" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Location</label>
+                                    <select class="form-select" id="sim-location" required>
+                                        <option value="New York">New York</option>
+                                        <option value="San Francisco">San Francisco</option>
+                                        <option value="London">London</option>
+                                        <option value="Tokyo">Tokyo</option>
+                                        <option value="Unknown Location">Unknown Location</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="sim-success" checked>
+                                        <label class="form-check-label" for="sim-success">
+                                            Successful Activity
+                                        </label>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-simulate">
+                                    <i class="fas fa-play"></i> Simulate Activity
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Simulation Results</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="simulation-results">
+                                <p class="text-muted">No simulations run yet.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global variables
+        let socket;
+        let riskChart, timelineChart, behaviorChart, locationChart, timePatternChart;
+        let activities = [];
+        let alerts = [];
+        let users = [];
+        
+        // Initialize Socket.IO
+        function initSocket() {
+            socket = io();
+            
+            socket.on('new_activity', function(data) {
+                console.log('New activity:', data);
+                updateDashboard();
+                if (document.getElementById('activities').style.display !== 'none') {
+                    refreshActivities();
+                }
+            });
+            
+            socket.on('new_alert', function(data) {
+                console.log('New alert:', data);
+                showNotification('New Alert', `High-risk activity detected for ${data.user_id}`, 'danger');
+                updateDashboard();
+                if (document.getElementById('alerts').style.display !== 'none') {
+                    refreshAlerts();
+                }
+            });
+        }
+        
+        // Show notification
+        function showNotification(title, message, type = 'info') {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+            notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 300px;';
+            notification.innerHTML = `
+                <strong>${title}</strong><br>${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, 5000);
+        }
+        
+        // Navigation
+        function showSection(sectionId) {
+            // Hide all sections
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.style.display = 'none';
+            });
+            
+            // Remove active class from all nav links
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            
+            // Show selected section
+            document.getElementById(sectionId).style.display = 'block';
+            
+            // Add active class to clicked nav link
+            event.target.classList.add('active');
+            
+            // Load section-specific data
+            switch(sectionId) {
+                case 'dashboard':
+                    updateDashboard();
+                    break;
+                case 'activities':
+                    refreshActivities();
+                    break;
+                case 'alerts':
+                    refreshAlerts();
+                    break;
+                case 'users':
+                    loadUsers();
+                    break;
+                case 'analytics':
+                    loadAnalytics();
+                    break;
+            }
+        }
+        
+        // API calls
+        async function fetchData(endpoint) {
+            try {
+                const response = await fetch(`/api/${endpoint}`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                return await response.json();
+            } catch (error) {
+                console.error(`Error fetching ${endpoint}:`, error);
+                showNotification('Error', `Failed to load ${endpoint}`, 'danger');
+                return null;
+            }
+        }
+        
+        // Dashboard functions
+        async function updateDashboard() {
+            try {
+                // Fetch activities
+                activities = await fetchData('activities?limit=1000') || [];
+                
+                // Calculate statistics
+                const highRisk = activities.filter(a => a.risk_score > 0.7).length;
+                const mediumRisk = activities.filter(a => a.risk_score > 0.3 && a.risk_score <= 0.7).length;
+                const lowRisk = activities.filter(a => a.risk_score <= 0.3).length;
+                const uniqueUsers = new Set(activities.map(a => a.user_id)).size;
+                
+                // Update stats
+                document.getElementById('high-risk-count').textContent = highRisk;
+                document.getElementById('medium-risk-count').textContent = mediumRisk;
+                document.getElementById('low-risk-count').textContent = lowRisk;
+                document.getElementById('total-users').textContent = uniqueUsers;
+                
+                // Update charts
+                updateRiskChart();
+                updateTimelineChart();
+                
+                // Update recent alerts
+                await refreshRecentAlerts();
+                
+            } catch (error) {
+                console.error('Error updating dashboard:', error);
+                showNotification('Error', 'Failed to update dashboard', 'danger');
+            }
+        }
+        
+        function updateRiskChart() {
+            const ctx = document.getElementById('riskChart').getContext('2d');
+            
+            if (riskChart) {
+                riskChart.destroy();
+            }
+            
+            const riskData = {
+                high: activities.filter(a => a.risk_score > 0.7).length,
+                medium: activities.filter(a => a.risk_score > 0.3 && a.risk_score <= 0.7).length,
+                low: activities.filter(a => a.risk_score <= 0.3).length
+            };
+            
+            riskChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['High Risk', 'Medium Risk', 'Low Risk'],
+                    datasets: [{
+                        data: [riskData.high, riskData.medium, riskData.low],
+                        backgroundColor: ['#dc3545', '#ffc107', '#28a745']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateTimelineChart() {
+            const ctx = document.getElementById('timelineChart').getContext('2d');
+            
+            if (timelineChart) {
+                timelineChart.destroy();
+            }
+            
+            // Group activities by hour
+            const hourlyData = new Array(24).fill(0);
+            activities.forEach(activity => {
+                const hour = new Date(activity.timestamp).getHours();
+                hourlyData[hour]++;
+            });
+            
+            timelineChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: 24}, (_, i) => `${i}:00`),
+                    datasets: [{
+                        label: 'Activities',
+                        data: hourlyData,
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+        
+        async function refreshRecentAlerts() {
+            try {
+                alerts = await fetchData('alerts') || [];
+                const alertsContainer = document.getElementById('recent-alerts');
+                
+                if (alerts.length === 0) {
+                    alertsContainer.innerHTML = '<p class="text-muted">No recent alerts.</p>';
+                    return;
+                }
+                
+                alertsContainer.innerHTML = alerts.slice(0, 5).map(alert => `
+                    <div class="alert-item alert-${alert.severity.toLowerCase()}">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <strong>${alert.alert_type}</strong>
+                                <p class="mb-1">${alert.description}</p>
+                                <small class="text-muted">User: ${alert.username}</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-${alert.severity.toLowerCase() === 'high' ? 'danger' : alert.severity.toLowerCase() === 'medium' ? 'warning' : 'success'}">${alert.severity}</span>
+                                <div class="timestamp">${new Date(alert.timestamp).toLocaleString()}</div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('Error refreshing alerts:', error);
+            }
+        }
+        
+        // Activities functions
+        async function refreshActivities() {
+            try {
+                const userFilter = document.getElementById('user-filter').value;
+                const endpoint = userFilter ? `activities?user_id=${userFilter}&limit=100` : 'activities?limit=100';
+                activities = await fetchData(endpoint) || [];
+                
+                const activitiesContainer = document.getElementById('activities-list');
+                
+                if (activities.length === 0) {
+                    activitiesContainer.innerHTML = '<p class="text-muted">No activities found.</p>';
+                    return;
+                }
+                
+                activitiesContainer.innerHTML = activities.map(activity => `
+                    <div class="activity-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-${getActivityIcon(activity.activity_type)} me-2"></i>
+                                    <strong>${activity.activity_type}</strong>
+                                    <span class="ms-2 text-muted">${activity.resource}</span>
+                                </div>
+                                <div class="mt-1">
+                                    <small class="text-muted">
+                                        User: ${activity.user_id} | 
+                                        IP: ${activity.ip_address} | 
+                                        Location: ${activity.location}
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                <span class="risk-score ${getRiskClass(activity.risk_score)}">${(activity.risk_score * 100).toFixed(1)}%</span>
+                                <div class="timestamp">${new Date(activity.timestamp).toLocaleString()}</div>
+                                ${activity.success ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('Error refreshing activities:', error);
+            }
+        }
+        
+        function getActivityIcon(activityType) {
+            const icons = {
+                'login': 'sign-in-alt',
+                'logout': 'sign-out-alt',
+                'file_access': 'file',
+                'command_execution': 'terminal'
+            };
+            return icons[activityType] || 'circle';
+        }
+        
+        function getRiskClass(riskScore) {
+            if (riskScore > 0.7) return 'risk-high';
+            if (riskScore > 0.3) return 'risk-medium';
+            return 'risk-low';
+        }
+        
+        function filterActivities() {
+            refreshActivities();
+        }
+        
+        // Alerts functions
+        async function refreshAlerts() {
+            try {
+                alerts = await fetchData('alerts') || [];
+                const alertsContainer = document.getElementById('alerts-list');
+                
+                if (alerts.length === 0) {
+                    alertsContainer.innerHTML = '<p class="text-muted">No alerts found.</p>';
+                    return;
+                }
+                
+                alertsContainer.innerHTML = alerts.map(alert => `
+                    <div class="alert-item alert-${alert.severity.toLowerCase()}">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <strong>${alert.alert_type}</strong>
+                                </div>
+                                <p class="mb-1">${alert.description}</p>
+                                <small class="text-muted">User: ${alert.username} (${alert.user_id})</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-${alert.severity.toLowerCase() === 'high' ? 'danger' : alert.severity.toLowerCase() === 'medium' ? 'warning' : 'success'}">${alert.severity}</span>
+                                <div class="timestamp">${new Date(alert.timestamp).toLocaleString()}</div>
+                                <button class="btn btn-sm btn-outline-primary mt-1" onclick="resolveAlert(${alert.id})">
+                                    Resolve
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('Error refreshing alerts:', error);
+            }
+        }
+        
+        function resolveAlert(alertId) {
+            // This would typically make an API call to resolve the alert
+            showNotification('Alert Resolved', 'Alert has been marked as resolved.', 'success');
+            refreshAlerts();
+        }
+        
+        // Users functions
+        async function loadUsers() {
+            try {
+                users = await fetchData('users') || [];
+                const usersContainer = document.getElementById('users-list');
+                
+                if (users.length === 0) {
+                    usersContainer.innerHTML = '<p class="text-muted">No users found.</p>';
+                    return;
+                }
+                
+                usersContainer.innerHTML = users.map(user => `
+                    <div class="card mb-3" style="cursor: pointer;" onclick="loadUserProfile('${user.user_id}')">
+                        <div class="card-body">
+                            <h6 class="card-title">${user.username}</h6>
+                            <p class="card-text text-muted">${user.user_id}</p>
+                        </div>
+                    </div>
+                `).join('');
+                
+                // Load user filter options
+                const userFilter = document.getElementById('user-filter');
+                userFilter.innerHTML = '<option value="">All Users</option>' + 
+                    users.map(user => `<option value="${user.user_id}">${user.username} (${user.user_id})</option>`).join('');
+                    
+            } catch (error) {
+                console.error('Error loading users:', error);
+            }
+        }
+        
+        async function loadUserProfile(userId) {
+            try {
+                const profile = await fetchData(`user_profile/${userId}`);
+                if (!profile) return;
+                
+                const profileContainer = document.getElementById('user-profile');
+                profileContainer.innerHTML = `
+                    <h6>User: ${userId}</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Total Activities:</strong> ${profile.total_activities}</p>
+                            <p><strong>Success Rate:</strong> ${(profile.success_rate * 100).toFixed(1)}%</p>
+                            <p><strong>Average Risk Score:</strong> ${(profile.avg_risk_score * 100).toFixed(1)}%</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Recent Activities (7 days):</strong> ${profile.recent_activities}</p>
+                            <p><strong>Common Locations:</strong> ${profile.common_locations.join(', ')}</p>
+                            <p><strong>Common Resources:</strong> ${profile.common_resources.slice(0, 3).join(', ')}</p>
+                        </div>
+                    </div>
+                `;
+                
+            } catch (error) {
+                console.error('Error loading user profile:', error);
+            }
+        }
+        
+        // Analytics functions
+        function loadAnalytics() {
+            updateBehaviorChart();
+            updateLocationChart();
+            updateTimePatternChart();
+        }
+        
+        function updateBehaviorChart() {
+            const ctx = document.getElementById('behaviorChart').getContext('2d');
+            
+            if (behaviorChart) {
+                behaviorChart.destroy();
+            }
+            
+            // Group activities by type
+            const activityTypes = {};
+            activities.forEach(activity => {
+                activityTypes[activity.activity_type] = (activityTypes[activity.activity_type] || 0) + 1;
+            });
+            
+            behaviorChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(activityTypes),
+                    datasets: [{
+                        label: 'Activity Count',
+                        data: Object.values(activityTypes),
+                        backgroundColor: ['#667eea', '#764ba2', '#f093fb', '#f5576c']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        }
+        
+        function updateLocationChart() {
+            const ctx = document.getElementById('locationChart').getContext('2d');
+            
+            if (locationChart) {
+                locationChart.destroy();
+            }
+            
+            // Group activities by location
+            const locations = {};
+            activities.forEach(activity => {
+                locations[activity.location] = (locations[activity.location] || 0) + 1;
+            });
+            
+            locationChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(locations),
+                    datasets: [{
+                        data: Object.values(locations),
+                        backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        }
+        
+        function updateTimePatternChart() {
+            const ctx = document.getElementById('timePatternChart').getContext('2d');
+            
+            if (timePatternChart) {
+                timePatternChart.destroy();
+            }
+            
+            // Group activities by day of week
+            const dayData = new Array(7).fill(0);
+            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            
+            activities.forEach(activity => {
+                const day = new Date(activity.timestamp).getDay();
+                dayData[day]++;
+            });
+            
+            timePatternChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: dayNames,
+                    datasets: [{
+                        label: 'Activities by Day',
+                        data: dayData,
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.2)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        }
+        
+        // Simulation functions
+        async function simulateActivity(formData) {
+            try {
+                const response = await fetch('/api/simulate_activity', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const result = await response.json();
+                
+                // Show result
+                const resultsContainer = document.getElementById('simulation-results');
+                const riskClass = result.risk_score > 0.7 ? 'danger' : result.risk_score > 0.3 ? 'warning' : 'success';
+                
+                resultsContainer.innerHTML = `
+                    <div class="alert alert-${riskClass}">
+                        <h6>Simulation Complete</h6>
+                        <p><strong>Risk Score:</strong> ${(result.risk_score * 100).toFixed(1)}%</p>
+                        <p><strong>Status:</strong> ${result.message}</p>
+                        <small class="text-muted">Timestamp: ${new Date().toLocaleString()}</small>
+                    </div>
+                ` + resultsContainer.innerHTML;
+                
+                showNotification('Simulation Complete', `Risk Score: ${(result.risk_score * 100).toFixed(1)}%`, riskClass);
+                
+            } catch (error) {
+                console.error('Error simulating activity:', error);
+                showNotification('Error', 'Failed to simulate activity', 'danger');
+            }
+        }
+        
+        // Initialize application
+        document.addEventListener('DOMContentLoaded', function() {
+            initSocket();
+            updateDashboard();
+            loadUsers();
+            
+            // Setup simulation form
+            document.getElementById('simulate-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = {
+                    user_id: document.getElementById('sim-user-id').value,
+                    activity_type: document.getElementById('sim-activity-type').value,
+                    resource: document.getElementById('sim-resource').value,
+                    ip_address: document.getElementById('sim-ip').value,
+                    location: document.getElementById('sim-location').value,
+                    success: document.getElementById('sim-success').checked
+                };
+                
+                simulateActivity(formData);
+            });
+            
+            // Auto-refresh dashboard every 30 seconds
+            setInterval(updateDashboard, 30000);
+        });
+    </script>
+</body>
+</html>
